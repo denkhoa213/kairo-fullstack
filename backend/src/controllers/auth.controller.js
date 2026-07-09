@@ -3,12 +3,14 @@ import User from "../models/User.model.js";
 import jwt from "jsonwebtoken";
 import Session from "../models/Session.model.js";
 import crypto from "crypto";
+import { ErrorsConstants } from "../constants/errors.constants.js";
+import { AUTH_MESSAGES } from "../constants/messages.constants.js";
 
 const ACCESS_TOKEN_TTL = "15m";
 const REFRESH_TOKEN_TTL = 14 * 24 * 60 * 60 * 1000;
 const REFRESH_COOKIE_OPTIONS = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
+  secure: true,
   sameSite: "none",
   maxAge: REFRESH_TOKEN_TTL,
 };
@@ -35,35 +37,35 @@ const createTokenPair = async (user) => {
 //register controller
 export const registerController = async (req, res) => {
   try {
-    const { email, password, name, firstName, lastName } = req.body;
-    const displayName =
-      name || (firstName && lastName ? `${firstName} ${lastName}` : undefined);
+    const { email, password, firstName, lastName } = req.body;
 
-    if (!email || !password || !displayName) {
+    if (!email || !password || !firstName || !lastName) {
       return res.status(400).json({
-        message: "Vui lòng điền đầy đủ thông tin!",
+        message: AUTH_MESSAGES.REGISTER_FAILED,
+        code: ErrorsConstants.ERROR_CODES.VALIDATION_ERROR,
       });
     }
 
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
-      return res.status(400).json({
-        message: "Email đã tồn tại!",
+      return res.status(409).json({
+        message: AUTH_MESSAGES.EMAIL_EXISTS,
+        code: ErrorsConstants.ERROR_CODES.EMAIL_EXISTS,
       });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await User.create({
       email: email.toLowerCase(),
-      password: hashedPassword,
-      name: displayName,
+      hashedPassword,
+      displayName: `${firstName} ${lastName}`,
     });
 
     const { accessToken, refreshToken } = await createTokenPair(user);
     res.cookie("refreshToken", refreshToken, REFRESH_COOKIE_OPTIONS);
 
     return res.status(201).json({
-      message: "Đăng ký thành công!",
+      message: AUTH_MESSAGES.REGISTER_SUCCESS,
       data: {
         user,
         token: accessToken,
@@ -84,24 +86,27 @@ export const loginController = async (req, res) => {
 
     if (!email || !password) {
       return res.status(400).json({
-        message: "Vui lòng nhập email và mật khẩu!",
+        message: AUTH_MESSAGES.LOGIN_FAILED,
+        code: ErrorsConstants.ERROR_CODES.VALIDATION_ERROR,
       });
     }
 
     const user = await User.findOne({ email: email.toLowerCase() }).select(
-      "+password",
+      "+hashedPassword",
     );
 
     if (!user) {
       return res.status(401).json({
-        message: "Email hoặc mật khẩu không chính xác!",
+        message: AUTH_MESSAGES.INVALID_CREDENTIALS,
+        code: ErrorsConstants.ERROR_CODES.INVALID_CREDENTIALS,
       });
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    const isPasswordValid = await bcrypt.compare(password, user.hashedPassword);
     if (!isPasswordValid) {
       return res.status(401).json({
-        message: "Email hoặc mật khẩu không chính xác!",
+        message: AUTH_MESSAGES.INVALID_CREDENTIALS,
+        code: ErrorsConstants.ERROR_CODES.INVALID_CREDENTIALS,
       });
     }
 
@@ -109,7 +114,7 @@ export const loginController = async (req, res) => {
     res.cookie("refreshToken", refreshToken, REFRESH_COOKIE_OPTIONS);
 
     return res.status(200).json({
-      message: `Login ${user.name} successfully!`,
+      message: AUTH_MESSAGES.LOGIN_SUCCESS,
       data: {
         user,
         token: accessToken,
@@ -127,85 +132,11 @@ export const loginController = async (req, res) => {
 export const logoutController = async (req, res) => {
   try {
     const token = req.cookies?.refreshToken;
-    if (!token) {
-      return res.status(401).json({
-        message: "Bạn chưa đăng nhập!",
-      });
+    if (token) {
+      await Session.deleteOne({ refreshToken: token });
+      res.clearCookie("refreshToken", REFRESH_COOKIE_OPTIONS);
     }
-    await Session.deleteOne({ refreshToken: token });
-    res.clearCookie("refreshToken", { ...REFRESH_COOKIE_OPTIONS, maxAge: 0 });
     return res.sendStatus(204);
-  } catch (error) {
-    console.log(error);
-    res.status(500).json({
-      message: "Internal server error",
-    });
-  }
-};
-
-export const meController = async (req, res) => {
-  try {
-    const user = req.user;
-    if (!user) {
-      return res.status(404).json({
-        message: "Không tìm thấy user!",
-      });
-    }
-    return res.status(200).json({
-      success: true,
-      data: user,
-    });
-  } catch (error) {
-    console.log(error);
-    res.status(500).json({
-      message: "Internal server error",
-    });
-  }
-};
-
-export const refreshTokenController = async (req, res) => {
-  try {
-    const token = req.cookies?.refreshToken;
-    if (!token) {
-      return res.status(401).json({
-        message: "Refresh token không tồn tại",
-      });
-    }
-
-    const session = await Session.findOne({ refreshToken: token });
-    if (!session || session.expiresAt < Date.now()) {
-      if (session) {
-        await session.deleteOne();
-      }
-      return res.status(401).json({
-        message: "Refresh token không hợp lệ",
-      });
-    }
-
-    const user = await User.findById(session.userId);
-    if (!user) {
-      return res.status(404).json({
-        message: "Không tìm thấy user!",
-      });
-    }
-
-    const accessToken = jwt.sign(
-      { userId: user._id.toString() },
-      process.env.JWT_SECRET,
-      {
-        expiresIn: ACCESS_TOKEN_TTL,
-      },
-    );
-
-    const newRefreshToken = crypto.randomBytes(64).toString("hex");
-    session.refreshToken = newRefreshToken;
-    session.expiresAt = Date.now() + REFRESH_TOKEN_TTL;
-    await session.save();
-
-    res.cookie("refreshToken", newRefreshToken, REFRESH_COOKIE_OPTIONS);
-    return res.status(200).json({
-      token: accessToken,
-    });
   } catch (error) {
     console.log(error);
     res.status(500).json({
@@ -221,13 +152,13 @@ export const forgotPasswordController = async (req, res) => {
     const { email } = req.body;
     if (!email) {
       return res.status(400).json({
-        message: "Vui lòng nhập email!",
+        message: AUTH_MESSAGES.INVALID_EMAIL,
       });
     }
     const user = await User.findOne({ email: email.toLowerCase() });
     if (!user) {
       return res.status(404).json({
-        message: "Không tìm thấy user!",
+        message: AUTH_MESSAGES.USER_NOT_FOUND,
       });
     }
     const resetToken = crypto.randomBytes(64).toString("hex");
@@ -235,7 +166,7 @@ export const forgotPasswordController = async (req, res) => {
     user.resetPasswordExpires = Date.now() + 60 * 60 * 1000;
     await user.save();
     return res.status(200).json({
-      message: "Vui lòng kiểm tra email!",
+      message: AUTH_MESSAGES.PASSWORD_RESET_EMAIL_SENT,
     });
   } catch (error) {
     console.log(error);
