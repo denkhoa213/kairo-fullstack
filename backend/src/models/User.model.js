@@ -14,13 +14,13 @@ const UserSchema = new mongoose.Schema(
         "Email không hợp lệ!",
       ],
     },
-    password: {
+    hashedPassword: {
       type: String,
       required: [true, "Mật khẩu là bắt buộc"],
       minlength: [6, "Mật khẩu phải có ít nhất 6 ký tự"],
       select: false,
     },
-    name: {
+    displayName: {
       type: String,
       required: [true, "Tên là bắt buộc"],
       trim: true,

@@ -5,8 +5,8 @@ import dotenv from "dotenv";
 import { connectDB } from "./config/database.js";
 import userRoute from "./routes/user.routes.js";
 import authRoute from "./routes/auth.routes.js";
-import flashcardSetRoute from "./routes/flashcardSet.routes.js";
-import flashcardRoute from "./routes/flashcard.routes.js";
+// import flashcardSetRoute from "./routes/flashcardSet.routes.js";
+// import flashcardRoute from "./routes/flashcard.routes.js";
 import cookieParser from "cookie-parser";
 import { protectedRoute } from "./middlewares/auth.middleware.js";
 import { errorHandler } from "./middlewares/error.middleware.js";
@@ -32,8 +32,8 @@ app.use(cookieParser());
 
 // routes public
 app.use("/api/auth", authRoute);
-app.use("/api/sets", flashcardSetRoute);
-app.use("/api", flashcardRoute);
+// app.use("/api/sets", flashcardSetRoute);
+// app.use("/api", flashcardRoute);
 
 // routes private
 app.use(protectedRoute);

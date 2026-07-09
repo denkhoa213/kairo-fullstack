@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import User from "../models/User.model.js";
+import { AUTH_MESSAGES } from "../constants/messages.constants.js";
 
 export const protectedRoute = (req, res, next) => {
   try {
@@ -8,23 +9,23 @@ export const protectedRoute = (req, res, next) => {
 
     if (!token) {
       return res.status(401).json({
-        message: "Bạn chưa đăng nhập!",
+        message: AUTH_MESSAGES.UNAUTHORIZED,
       });
     }
 
     jwt.verify(token, process.env.JWT_SECRET, async (err, decodedUser) => {
       if (err) {
         return res.status(403).json({
-          message: "Không có quyền truy cập!",
+          message: AUTH_MESSAGES.FORBIDDEN,
         });
       }
 
       const user = await User.findById(decodedUser.userId).select(
-        "-password -refreshToken",
+        "-hashedPassword ",
       );
       if (!user) {
         return res.status(404).json({
-          message: "Không tìm thấy user!",
+          message: AUTH_MESSAGES.USER_NOT_FOUND,
         });
       }
       req.user = user;
