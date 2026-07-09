@@ -1,177 +1,220 @@
-// import FlashcardSet from "../models/FlashcardSet.model.js";
-// import Flashcard from "../models/Flashcard.model.js";
-// import { getIo } from "../socket.js";
+import FlashcardSet from "../models/FlashcardSet.model.js";
+import FlashCard from "../models/Flashcard.model.js";
 
-// export const listFlashcardSets = async (req, res, next) => {
-//   try {
-//     const { search, category, limit = 24, page = 1 } = req.query;
-//     const query = { isPublic: true };
+// @desc    List flashcard sets (public, searchable, paginated)
+// @route   GET /api/sets
+// @access  Public
+export const listFlashcardSets = async (req, res, next) => {
+  try {
+    const { search, category, sort = "newest", limit = 24, page = 1 } = req.query;
+    const query = { isPublic: true };
 
-//     if (search) {
-//       query.$or = [
-//         { name: { $regex: search, $options: "i" } },
-//         { description: { $regex: search, $options: "i" } },
-//       ];
-//     }
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+      ];
+    }
 
-//     if (category) {
-//       query.categoryId = category;
-//     }
+    if (category) {
+      query.categoryId = category;
+    }
 
-//     const pageNumber = Number(page) || 1;
-//     const pageSize = Number(limit) || 24;
+    const pageNumber = Math.max(Number(page), 1);
+    const pageSize = Math.min(Number(limit), 100);
 
-//     const sets = await FlashcardSet.find(query)
-//       .sort({ createdAt: -1 })
-//       .skip((pageNumber - 1) * pageSize)
-//       .limit(pageSize)
-//       .populate("categoryId", "name slug")
-//       .populate("tags", "name slug")
-//       .populate("userId", "name avatar");
+    const sortOptions = {
+      newest: { createdAt: -1 },
+      popular: { favoriteCount: -1 },
+      rating: { rating: -1 },
+    };
 
-//     const setsWithAuthor = sets.map((set) => {
-//       const safeSet = set.toObject();
-//       safeSet.author = safeSet.userId;
-//       safeSet.category = safeSet.categoryId;
-//       return safeSet;
-//     });
+    const sets = await FlashcardSet.find(query)
+      .sort(sortOptions[sort] || sortOptions.newest)
+      .skip((pageNumber - 1) * pageSize)
+      .limit(pageSize)
+      .populate("categoryId", "name slug")
+      .populate("tags", "name slug")
+      .populate("userId", "name avatar");
 
-//     const total = await FlashcardSet.countDocuments(query);
+    const total = await FlashcardSet.countDocuments(query);
 
-//     return res.status(200).json({
-//       success: true,
-//       data: {
-//         items: setsWithAuthor,
-//         total,
-//         page: pageNumber,
-//         limit: pageSize,
-//       },
-//     });
-//   } catch (error) {
-//     next(error);
-//   }
-// };
+    return res.status(200).json({
+      success: true,
+      data: {
+        items: sets,
+        total,
+        page: pageNumber,
+        limit: pageSize,
+        totalPages: Math.ceil(total / pageSize),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
-// export const getFlashcardSet = async (req, res, next) => {
-//   try {
-//     const { id } = req.params;
-//     const set = await FlashcardSet.findById(id)
-//       .populate("categoryId", "name slug")
-//       .populate("tags", "name slug")
-//       .populate("userId", "name avatar");
+// @desc    Get a single flashcard set with its cards
+// @route   GET /api/sets/:id
+// @access  Public (if public set) or Private
+export const getFlashcardSet = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const set = await FlashcardSet.findById(id)
+      .populate("categoryId", "name slug")
+      .populate("tags", "name slug")
+      .populate("userId", "name avatar");
 
-//     if (!set) {
-//       return res.status(404).json({ message: "Flashcard set not found" });
-//     }
+    if (!set) {
+      return res.status(404).json({ message: "Flashcard set not found" });
+    }
 
-//     const setObject = set.toObject();
-//     setObject.author = setObject.userId;
-//     setObject.category = setObject.categoryId;
+    if (!set.isPublic) {
+      // Check ownership — req.user might not exist on public routes
+      if (!req.user || set.userId._id.toString() !== req.user._id.toString()) {
+        return res.status(403).json({ message: "This set is private" });
+      }
+    }
 
-//     const flashcards = await Flashcard.find({ setId: id }).sort({ order: 1 });
+    const flashcards = await FlashCard.find({ setId: id }).sort({ order: 1 });
 
-//     return res.status(200).json({
-//       success: true,
-//       data: {
-//         set: setObject,
-//         flashcards,
-//       },
-//     });
-//   } catch (error) {
-//     next(error);
-//   }
-// };
+    return res.status(200).json({
+      success: true,
+      data: { set, flashcards },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
-// export const createFlashcardSet = async (req, res, next) => {
-//   try {
-//     const {
-//       name,
-//       description,
-//       categoryId,
-//       isPublic = true,
-//       tags = [],
-//     } = req.body;
-//     if (!name || !categoryId) {
-//       return res
-//         .status(400)
-//         .json({ message: "Name and category are required" });
-//     }
+// @desc    Create a new flashcard set
+// @route   POST /api/sets
+// @access  Private
+export const createFlashcardSet = async (req, res, next) => {
+  try {
+    const { name, description, categoryId, isPublic = true, tags = [], cards = [] } = req.body;
 
-//     const set = await FlashcardSet.create({
-//       name,
-//       description,
-//       categoryId,
-//       userId: req.user._id,
-//       isPublic,
-//       tags,
-//     });
+    if (!name) {
+      return res.status(400).json({ message: "Name is required" });
+    }
 
-//     const io = getIo();
-//     io.emit("setsUpdated");
-//     io.to(`set:${set._id}`).emit("setUpdated", { setId: set._id });
+    const set = await FlashcardSet.create({
+      name,
+      description,
+      categoryId,
+      userId: req.user._id,
+      isPublic,
+      tags,
+      totalCards: cards.length,
+    });
 
-//     return res.status(201).json({
-//       success: true,
-//       data: set,
-//     });
-//   } catch (error) {
-//     next(error);
-//   }
-// };
+    // Bulk insert flashcards if provided
+    if (cards.length > 0) {
+      const cardsToInsert = cards.map((card, idx) => ({
+        ...card,
+        setId: set._id,
+        order: idx,
+      }));
+      await FlashCard.insertMany(cardsToInsert);
+    }
 
-// export const updateFlashcardSet = async (req, res, next) => {
-//   try {
-//     const { id } = req.params;
-//     const updateData = req.body;
-//     const set = await FlashcardSet.findById(id);
+    return res.status(201).json({ success: true, data: set });
+  } catch (error) {
+    next(error);
+  }
+};
 
-//     if (!set) {
-//       return res.status(404).json({ message: "Flashcard set not found" });
-//     }
+// @desc    Update a flashcard set
+// @route   PUT /api/sets/:id
+// @access  Private (Owner only)
+export const updateFlashcardSet = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { name, description, categoryId, isPublic, tags, image } = req.body;
 
-//     if (set.userId.toString() !== req.user._id.toString()) {
-//       return res.status(403).json({ message: "Không có quyền" });
-//     }
+    const set = await FlashcardSet.findById(id);
+    if (!set) {
+      return res.status(404).json({ message: "Flashcard set not found" });
+    }
 
-//     const updatedSet = await FlashcardSet.findByIdAndUpdate(id, updateData, {
-//       new: true,
-//       runValidators: true,
-//     });
+    if (set.userId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Not authorized to update this set" });
+    }
 
-//     const io = getIo();
-//     io.emit("setsUpdated");
-//     io.to(`set:${id}`).emit("setUpdated", { setId: id });
+    const updatedSet = await FlashcardSet.findByIdAndUpdate(
+      id,
+      { name, description, categoryId, isPublic, tags, image },
+      { new: true, runValidators: true }
+    );
 
-//     return res.status(200).json({
-//       success: true,
-//       data: updatedSet,
-//     });
-//   } catch (error) {
-//     next(error);
-//   }
-// };
+    return res.status(200).json({ success: true, data: updatedSet });
+  } catch (error) {
+    next(error);
+  }
+};
 
-// export const deleteFlashcardSet = async (req, res, next) => {
-//   try {
-//     const { id } = req.params;
-//     const set = await FlashcardSet.findById(id);
+// @desc    Delete a flashcard set
+// @route   DELETE /api/sets/:id
+// @access  Private (Owner only)
+export const deleteFlashcardSet = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const set = await FlashcardSet.findById(id);
 
-//     if (!set) {
-//       return res.status(404).json({ message: "Flashcard set not found" });
-//     }
+    if (!set) {
+      return res.status(404).json({ message: "Flashcard set not found" });
+    }
 
-//     if (set.userId.toString() !== req.user._id.toString()) {
-//       return res.status(403).json({ message: "Không có quyền" });
-//     }
+    if (set.userId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Not authorized to delete this set" });
+    }
 
-//     await set.deleteOne();
+    // Cascade delete all flashcards in the set
+    await FlashCard.deleteMany({ setId: id });
+    await set.deleteOne();
 
-//     const io = getIo();
-//     io.emit("setsUpdated");
-//     io.to(`set:${id}`).emit("setUpdated", { setId: id });
+    return res.status(200).json({ success: true, message: "Set deleted successfully" });
+  } catch (error) {
+    next(error);
+  }
+};
 
-//     return res.status(204).end();
-//   } catch (error) {
-//     next(error);
-//   }
-// };
+// @desc    Toggle like on a flashcard set
+// @route   POST /api/sets/:id/like
+// @access  Private
+export const toggleLikeSet = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const set = await FlashcardSet.findById(id);
+
+    if (!set) {
+      return res.status(404).json({ message: "Flashcard set not found" });
+    }
+
+    // Simple increment/decrement — for full implementation, track user IDs in a Set
+    const alreadyLiked = req.body.liked;
+    const newCount = alreadyLiked
+      ? Math.max(set.favoriteCount - 1, 0)
+      : set.favoriteCount + 1;
+
+    await FlashcardSet.findByIdAndUpdate(id, { favoriteCount: newCount });
+    return res.status(200).json({ success: true, favoriteCount: newCount });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get sets created by the authenticated user
+// @route   GET /api/sets/my
+// @access  Private
+export const getMySets = async (req, res, next) => {
+  try {
+    const sets = await FlashcardSet.find({ userId: req.user._id })
+      .sort({ createdAt: -1 })
+      .populate("categoryId", "name slug");
+
+    return res.status(200).json({ success: true, data: sets });
+  } catch (error) {
+    next(error);
+  }
+};

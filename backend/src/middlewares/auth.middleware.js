@@ -21,7 +21,7 @@ export const protectedRoute = (req, res, next) => {
       }
 
       const user = await User.findById(decodedUser.userId).select(
-        "-hashedPassword ",
+        "-hashedPassword",
       );
       if (!user) {
         return res.status(404).json({
@@ -37,4 +37,20 @@ export const protectedRoute = (req, res, next) => {
       message: "Internal server error",
     });
   }
+};
+
+// Attach user if token present, but don't reject if missing (for semi-public routes)
+export const optionalAuth = (req, res, next) => {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+
+  if (!token) return next();
+
+  jwt.verify(token, process.env.JWT_SECRET, async (err, decodedUser) => {
+    if (!err && decodedUser) {
+      const user = await User.findById(decodedUser.userId).select("-hashedPassword");
+      if (user) req.user = user;
+    }
+    next();
+  });
 };
