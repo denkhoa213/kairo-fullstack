@@ -1,107 +1,103 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
-import type { User } from "../types";
-import api from "../lib/api";
+import { toast } from "sonner";
+import { authService } from "@/services/auth.service";
+import type { AuthState } from "@/types/store.type";
 
-interface AuthState {
-  user: User | null;
-  token: string | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  error: string | null;
-}
+export const useAuthStore = create<AuthState>((set) => ({
+  accessToken: null,
+  user: null,
+  loading: false,
+  isLoading: false,
+  isAuthenticated: false,
 
-interface AuthActions {
-  login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
-  updateUser: (data: Partial<User>) => void;
-  setError: (error: string | null) => void;
-  checkAuth: () => Promise<void>;
-}
-
-const useAuthStore = create<AuthState & AuthActions>()(
-  persist(
-    (set, get) => ({
-      user: null,
-      token: null,
-      isAuthenticated: false,
-      isLoading: false,
-      error: null,
-
-      login: async (email, password) => {
-        set({ isLoading: true, error: null });
-        try {
-          const res = await api.post("/auth/login", { email, password });
-          const { user, token } = res.data.data;
-          localStorage.setItem("kairo_token", token);
-          set({ user, token, isAuthenticated: true, isLoading: false });
-        } catch (err: unknown) {
-          const msg =
-            err instanceof Error
-              ? err.message
-              : (err as { response?: { data?: { message?: string } } })?.response?.data?.message || "Đăng nhập thất bại";
-          set({ error: msg, isLoading: false });
-          throw err;
-        }
-      },
-
-      register: async (name, email, password) => {
-        set({ isLoading: true, error: null });
-        try {
-          const res = await api.post("/auth/register", { name, email, password });
-          const { user, token } = res.data.data;
-          localStorage.setItem("kairo_token", token);
-          set({ user, token, isAuthenticated: true, isLoading: false });
-        } catch (err: unknown) {
-          const msg =
-            (err as { response?: { data?: { message?: string } } })?.response?.data?.message || "Đăng ký thất bại";
-          set({ error: msg, isLoading: false });
-          throw err;
-        }
-      },
-
-      logout: async () => {
-        try {
-          await api.post("/auth/logout");
-        } catch {
-          // ignore
-        }
-        localStorage.removeItem("kairo_token");
-        set({ user: null, token: null, isAuthenticated: false });
-      },
-
-      updateUser: (data) => {
-        const current = get().user;
-        if (current) set({ user: { ...current, ...data } });
-      },
-
-      setError: (error) => set({ error }),
-
-      checkAuth: async () => {
-        const token = localStorage.getItem("kairo_token");
-        if (!token) {
-          set({ isAuthenticated: false, user: null });
-          return;
-        }
-        try {
-          const res = await api.get("/auth/me");
-          set({ user: res.data.data, isAuthenticated: true, token });
-        } catch {
-          localStorage.removeItem("kairo_token");
-          set({ user: null, token: null, isAuthenticated: false });
-        }
-      },
-    }),
-    {
-      name: "kairo-auth",
-      partialize: (state) => ({
-        user: state.user,
-        token: state.token,
-        isAuthenticated: state.isAuthenticated,
-      }),
+  register: async (email, password, firstName, lastName) => {
+    set({ loading: true, isLoading: true });
+    try {
+      const data = await authService.register(
+        email,
+        password,
+        firstName,
+        lastName,
+      );
+      if (data.accessToken) {
+        localStorage.setItem("accessToken", data.accessToken);
+        set({
+          accessToken: data.accessToken,
+          user: data.user,
+          isAuthenticated: Boolean(data.user),
+        });
+      }
+      toast.success("Đăng ký thành công!");
+    } catch (error) {
+      console.error("Register failed:", error);
+      toast.error("Đăng ký thất bại. Vui lòng thử lại sau.");
+    } finally {
+      set({ loading: false, isLoading: false });
     }
-  )
-);
+  },
 
-export default useAuthStore;
+  login: async (email, password) => {
+    set({ loading: true, isLoading: true });
+    try {
+      const data = await authService.login(email, password);
+      if (data.accessToken) {
+        localStorage.setItem("accessToken", data.accessToken);
+      }
+
+      set({
+        accessToken: data.accessToken,
+        user: data.user,
+        isAuthenticated: Boolean(data.user),
+      });
+      toast.success("Đăng nhập thành công!");
+      return data;
+    } catch (error) {
+      console.error("Login failed:", error);
+      toast.error("Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.");
+      return null;
+    } finally {
+      set({ loading: false, isLoading: false });
+    }
+  },
+
+  logout: async () => {
+    set({ loading: true, isLoading: true });
+    try {
+      await authService.logout().catch(() => undefined);
+    } finally {
+      localStorage.removeItem("accessToken");
+      set({
+        accessToken: null,
+        user: null,
+        isAuthenticated: false,
+        loading: false,
+        isLoading: false,
+      });
+      toast.success("Đăng xuất thành công!");
+    }
+  },
+
+  checkAuth: async () => {
+    const token = localStorage.getItem("accessToken");
+    if (!token) {
+      set({ accessToken: null, user: null, isAuthenticated: false });
+      return;
+    }
+
+    set({ loading: true, isLoading: true });
+    try {
+      const user = await authService.getProfile();
+      set({
+        accessToken: token,
+        user,
+        isAuthenticated: Boolean(user),
+      });
+    } catch (error) {
+      console.error("Check auth failed:", error);
+      localStorage.removeItem("accessToken");
+      set({ accessToken: null, user: null, isAuthenticated: false });
+    } finally {
+      set({ loading: false, isLoading: false });
+    }
+  },
+}));

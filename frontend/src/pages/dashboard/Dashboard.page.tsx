@@ -17,9 +17,11 @@ import {
 } from "lucide-react";
 import DashboardLayout from "../../components/layout/DashboardLayout";
 import DeckCard from "../../components/ui/DeckCard";
-import useAuthStore from "../../stores/authStore";
+
 import { fetchDashboardStats } from "../../lib/flashcards";
 import { cn, formatDuration, formatNumber } from "../../lib/utils";
+import { useAuthStore } from "@/stores/authStore";
+import { getUserDisplayName } from "@/types/user.type";
 
 // ── Stat Card ──────────────────────────────────────────────────────
 function StatCard({
@@ -165,7 +167,7 @@ export default function DashboardPage() {
     };
   }, []);
 
-  const firstName = user?.name?.split(" ").pop() || "bạn";
+  const firstName = getUserDisplayName(user).split(" ").pop() || "bạn";
   const greeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return "Chào buổi sáng";

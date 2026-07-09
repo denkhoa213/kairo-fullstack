@@ -1,13 +1,15 @@
 import { Toaster } from "sonner";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router";
+import { Routes, Route, Navigate } from "react-router";
 import useThemeStore from "./stores/themeStore";
 import { useEffect } from "react";
-import useAuthStore from "./stores/authStore";
+import { useAuthStore } from "@/stores/authStore";
 import { Loader2 } from "lucide-react";
 
 // Auth Pages
 import LoginPage from "./pages/auth/client/Login.page";
 import RegisterPage from "./pages/auth/client/Register.page";
+import { useLogin } from "./hooks/auth/useLoginFrom";
+import { useRegisterForm } from "./hooks/auth/useRegisterForm";
 
 // Main Pages
 import HomePage from "./pages/home/Home.page";
@@ -31,7 +33,7 @@ import SettingsPage from "./pages/profile/Settings.page";
 // Dashboard Pages
 import LeaderboardPage from "./pages/dashboard/Leaderboard.page";
 import StatsPage from "./pages/dashboard/Stats.page";
-import AdminPage from "./pages/dashboard/Admin.page";
+import AdminPage from "./pages/admin/AdminDashboard.page";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuthStore();
@@ -54,6 +56,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function App() {
   const { theme } = useThemeStore();
   const { checkAuth } = useAuthStore();
+  const loginProps = useLogin();
+  const registerProps = useRegisterForm();
 
   // Apply theme to document
   useEffect(() => {
@@ -76,13 +80,13 @@ function App() {
   }, [checkAuth]);
 
   return (
-    <BrowserRouter>
+    <>
       <Toaster richColors />
       <Routes>
         {/* Public Routes */}
         <Route path="/" element={<HomePage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/login" element={<LoginPage {...loginProps} />} />
+        <Route path="/register" element={<RegisterPage {...registerProps} />} />
         <Route path="/sets" element={<SetListPage />} />
         <Route path="/sets/:id" element={<SetDetailPage />} />
 
@@ -201,7 +205,7 @@ function App() {
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </BrowserRouter>
+    </>
   );
 }
 

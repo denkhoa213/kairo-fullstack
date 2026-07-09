@@ -55,14 +55,15 @@ export function generateId(): string {
 }
 
 export function getInitials(name: string): string {
+  if (!name || !name.trim()) return "?";
   return name
-    .split(" ")
+    .trim()
+    .split(/\s+/)
     .map((n) => n[0])
     .join("")
     .toUpperCase()
     .slice(0, 2);
 }
-
 export function normalizeAnswer(str: string): string {
   return str
     .toLowerCase()
@@ -79,7 +80,7 @@ export function levenshteinDistance(a: string, b: string): number {
   const m = a.length;
   const n = b.length;
   const dp: number[][] = Array.from({ length: m + 1 }, (_, i) =>
-    Array.from({ length: n + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0))
+    Array.from({ length: n + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)),
   );
   for (let i = 1; i <= m; i++) {
     for (let j = 1; j <= n; j++) {
@@ -112,8 +113,8 @@ export function getCategoryColor(category: string): string {
     "Tiếng Anh": "from-blue-500 to-cyan-500",
     "Tiếng Nhật": "from-red-500 to-pink-500",
     "Lập trình": "from-violet-500 to-purple-500",
-    "Toán": "from-orange-500 to-amber-500",
-    "Marketing": "from-green-500 to-emerald-500",
+    Toán: "from-orange-500 to-amber-500",
+    Marketing: "from-green-500 to-emerald-500",
     "Kinh tế": "from-yellow-500 to-orange-500",
     "Hóa học": "from-teal-500 to-cyan-500",
     "Vật lý": "from-indigo-500 to-blue-500",
@@ -127,8 +128,8 @@ export function getCategoryIcon(category: string): string {
     "Tiếng Anh": "🇬🇧",
     "Tiếng Nhật": "🇯🇵",
     "Lập trình": "💻",
-    "Toán": "📐",
-    "Marketing": "📈",
+    Toán: "📐",
+    Marketing: "📈",
     "Kinh tế": "💰",
     "Hóa học": "⚗️",
     "Vật lý": "⚡",
