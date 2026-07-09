@@ -1,80 +1,90 @@
 import { create } from "zustand";
-import type { Flashcard, StudyMode } from "../types";
-import { shuffle } from "../lib/utils";
+import { toast } from "sonner";
+import { studyService } from "@/services/study.service";
+import type { StudyModeType, StudyCard } from "@/types/store.type";
 
-interface StudyState {
+interface StudyStore {
   // Session info
   setId: string | null;
   setName: string;
-  mode: StudyMode;
-  cards: Flashcard[];
+  mode: StudyModeType | null;
+  cards: StudyCard[];
   currentIndex: number;
+
+  // Flip state (local UI)
   isFlipped: boolean;
-  isShuffled: boolean;
 
   // Progress
-  known: string[];       // flashcard IDs
-  unknown: string[];     // flashcard IDs
-  correct: number;
-  incorrect: number;
+  known: number;       // alias for knownCount (for backward compat)
+  unknown: number;     // alias for unknownCount
+  knownCount: number;
+  unknownCount: number;
+  isComplete: boolean;
   startTime: number | null;
 
-  // UI
-  isComplete: boolean;
+  // UI flags
   isAutoPlay: boolean;
   isFullscreen: boolean;
-}
+  progressMap: Record<string, { state?: string }>;
 
-interface StudyActions {
-  startSession: (setId: string, setName: string, cards: Flashcard[], mode: StudyMode) => void;
+  // Session Actions
+  startSession: (setId: string, setName: string, cards: StudyCard[], mode: StudyModeType) => void;
   nextCard: () => void;
   prevCard: () => void;
   flipCard: () => void;
   markKnown: () => void;
   markUnknown: () => void;
-  toggleShuffle: () => void;
   toggleAutoPlay: () => void;
+  toggleShuffle: () => void;
   toggleFullscreen: () => void;
   restart: () => void;
   resetSession: () => void;
-  setCurrentIndex: (index: number) => void;
-  recordAnswer: (isCorrect: boolean) => void;
+
+  // API Actions
+  submitReview: (flashcardId: string, correct: boolean, quality?: number) => Promise<void>;
+  completeSession: (mode: StudyModeType) => Promise<{ xpEarned: number; score: number } | null>;
 }
 
-const useStudyStore = create<StudyState & StudyActions>()((set, get) => ({
+const initialState = {
   setId: null,
   setName: "",
-  mode: "flashcard",
-  cards: [],
+  mode: null,
+  cards: [] as StudyCard[],
   currentIndex: 0,
   isFlipped: false,
-  isShuffled: false,
-  known: [],
-  unknown: [],
-  correct: 0,
-  incorrect: 0,
-  startTime: null,
+  known: 0,
+  unknown: 0,
+  knownCount: 0,
+  unknownCount: 0,
   isComplete: false,
+  startTime: null,
   isAutoPlay: false,
   isFullscreen: false,
+  progressMap: {},
+};
+
+export const useStudyStore = create<StudyStore>((set, get) => ({
+  ...initialState,
 
   startSession: (setId, setName, cards, mode) => {
     set({
       setId,
       setName,
-      mode,
       cards,
+      mode,
       currentIndex: 0,
       isFlipped: false,
-      known: [],
-      unknown: [],
-      correct: 0,
-      incorrect: 0,
-      startTime: Date.now(),
+      known: 0,
+      unknown: 0,
+      knownCount: 0,
+      unknownCount: 0,
       isComplete: false,
-      isAutoPlay: false,
+      startTime: Date.now(),
+      progressMap: {},
     });
   },
+
+  flipCard: () => set((s) => ({ isFlipped: !s.isFlipped })),
 
   nextCard: () => {
     const { currentIndex, cards } = get();
@@ -92,90 +102,86 @@ const useStudyStore = create<StudyState & StudyActions>()((set, get) => ({
     }
   },
 
-  flipCard: () => {
-    set((state) => ({ isFlipped: !state.isFlipped }));
-  },
-
   markKnown: () => {
-    const { cards, currentIndex, known } = get();
-    const card = cards[currentIndex];
-    if (card && !known.includes(card._id)) {
-      set((state) => ({ known: [...state.known, card._id] }));
-    }
+    set((s) => ({
+      known: s.known + 1,
+      knownCount: s.knownCount + 1,
+      isFlipped: false,
+    }));
     get().nextCard();
   },
 
   markUnknown: () => {
-    const { cards, currentIndex, unknown } = get();
-    const card = cards[currentIndex];
-    if (card && !unknown.includes(card._id)) {
-      set((state) => ({ unknown: [...state.unknown, card._id] }));
-    }
+    set((s) => ({
+      unknown: s.unknown + 1,
+      unknownCount: s.unknownCount + 1,
+      isFlipped: false,
+    }));
     get().nextCard();
   },
 
+  toggleAutoPlay: () => set((s) => ({ isAutoPlay: !s.isAutoPlay })),
+
   toggleShuffle: () => {
-    const { cards, isShuffled } = get();
-    const newCards = isShuffled ? [...cards].sort((a, b) => a.order - b.order) : shuffle(cards);
-    set({ cards: newCards, isShuffled: !isShuffled, currentIndex: 0, isFlipped: false });
+    const { cards } = get();
+    const shuffled = [...cards].sort(() => Math.random() - 0.5);
+    set({ cards: shuffled, currentIndex: 0, isFlipped: false });
   },
 
-  toggleAutoPlay: () => {
-    set((state) => ({ isAutoPlay: !state.isAutoPlay }));
+  toggleFullscreen: () => set((s) => ({ isFullscreen: !s.isFullscreen })),
+
+  restart: () => {
+    const { cards } = get();
+    set({
+      currentIndex: 0,
+      isFlipped: false,
+      known: 0,
+      unknown: 0,
+      knownCount: 0,
+      unknownCount: 0,
+      isComplete: false,
+      startTime: Date.now(),
+      cards: [...cards], // preserve cards
+    });
   },
 
-  toggleFullscreen: () => {
-    set((state) => ({ isFullscreen: !state.isFullscreen }));
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen?.().catch(() => {});
-    } else {
-      document.exitFullscreen?.().catch(() => {});
+  resetSession: () => set({ ...initialState }),
+
+  // ── API calls ────────────────────────────────────────────────────────────
+  submitReview: async (flashcardId, correct, quality) => {
+    const { setId } = get();
+    if (!setId) return;
+    try {
+      await studyService.reviewCard({ flashcardId, setId, correct, quality });
+    } catch (err) {
+      console.warn("Review card API error:", err);
     }
   },
 
-  restart: () => {
-    set({
-      currentIndex: 0,
-      isFlipped: false,
-      known: [],
-      unknown: [],
-      correct: 0,
-      incorrect: 0,
-      startTime: Date.now(),
-      isComplete: false,
-    });
-  },
+  completeSession: async (mode: StudyModeType) => {
+    const { setId, knownCount, unknownCount, startTime } = get();
+    if (!setId) return null;
 
-  resetSession: () => {
-    set({
-      setId: null,
-      setName: "",
-      cards: [],
-      currentIndex: 0,
-      isFlipped: false,
-      isShuffled: false,
-      known: [],
-      unknown: [],
-      correct: 0,
-      incorrect: 0,
-      startTime: null,
-      isComplete: false,
-      isAutoPlay: false,
-      isFullscreen: false,
-    });
-  },
+    const cardsReviewed = knownCount + unknownCount;
+    const durationSeconds = startTime ? Math.round((Date.now() - startTime) / 1000) : 0;
 
-  setCurrentIndex: (index) => {
-    set({ currentIndex: index, isFlipped: false });
-  },
-
-  recordAnswer: (isCorrect) => {
-    if (isCorrect) {
-      set((state) => ({ correct: state.correct + 1 }));
-    } else {
-      set((state) => ({ incorrect: state.incorrect + 1 }));
+    try {
+      const result = await studyService.completeSession({
+        setId,
+        mode,
+        cardsReviewed,
+        correctCount: knownCount,
+        incorrectCount: unknownCount,
+        durationSeconds,
+      });
+      toast.success(`+${result.xpEarned} XP! Hoàn thành phiên học 🎉`);
+      return result;
+    } catch (err) {
+      console.warn("Complete session error:", err);
+      return null;
     }
   },
 }));
 
+// Default export for backward compatibility
 export default useStudyStore;

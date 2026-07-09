@@ -17,8 +17,10 @@ import {
   Plus,
 } from "lucide-react";
 import { cn, getInitials } from "../../lib/utils";
-import useAuthStore from "../../stores/authStore";
+import { getUserDisplayName } from "@/types/user.type";
+
 import useThemeStore from "../../stores/themeStore";
+import { useAuthStore } from "@/stores/authStore";
 
 const NAV_LINKS = [
   { href: "/sets", label: "Khám phá" },
@@ -159,16 +161,16 @@ export default function Navbar() {
                     {user.avatar ? (
                       <img
                         src={user.avatar}
-                        alt={user.name}
+                        alt={getUserDisplayName(user)}
                         className="w-7 h-7 rounded-full object-cover"
                       />
                     ) : (
                       <div className="w-7 h-7 rounded-full bg-gradient-primary flex items-center justify-center text-white text-xs font-semibold">
-                        {getInitials(user.name)}
+                        {getInitials(getUserDisplayName(user))}
                       </div>
                     )}
                     <span className="hidden sm:block text-sm font-medium text-foreground max-w-[100px] truncate">
-                      {user.name.split(" ").pop()}
+                      {getUserDisplayName(user).split(" ").pop()}
                     </span>
                     <ChevronDown
                       className={cn(
@@ -183,7 +185,7 @@ export default function Navbar() {
                     <div className="absolute right-0 mt-2 w-52 bg-card border border-border rounded-2xl shadow-lg overflow-hidden animate-scale-in">
                       <div className="px-3 py-3 border-b border-border">
                         <p className="text-sm font-semibold text-foreground">
-                          {user.name}
+                          {getUserDisplayName(user)}
                         </p>
                         <p className="text-xs text-muted-foreground truncate">
                           {user.email}

@@ -10,9 +10,11 @@ import {
   Star,
   ChevronRight,
 } from "lucide-react";
-import { cn, getInitials } from "../../lib/utils";
-import useAuthStore from "../../stores/authStore";
+import { cn, getInitials } from "../../lib/utils"; // đảm bảo getInitials đã được export từ utils
+
 import Navbar from "./Navbar";
+import { useAuthStore } from "@/stores/authStore";
+import { getUserDisplayName } from "@/types/user.type";
 
 const SIDEBAR_LINKS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -43,17 +45,21 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 {user.avatar ? (
                   <img
                     src={user.avatar}
-                    alt={user.name}
+                    alt={getUserDisplayName(user)}
                     className="w-10 h-10 rounded-full object-cover"
                   />
                 ) : (
                   <div className="w-10 h-10 rounded-full bg-gradient-primary flex items-center justify-center text-white text-sm font-semibold">
-                    {getInitials(user.name)}
+                    {getInitials(getUserDisplayName(user))}
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-foreground truncate">{user.name}</p>
-                  <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                  <p className="text-sm font-semibold text-foreground truncate">
+                    {getUserDisplayName(user)}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {user.email}
+                  </p>
                 </div>
               </div>
 
@@ -62,14 +68,18 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 <div className="bg-accent/60 rounded-xl p-2.5 text-center">
                   <div className="flex items-center justify-center gap-1 mb-0.5">
                     <Flame className="w-3.5 h-3.5 text-orange-500" />
-                    <span className="text-sm font-bold text-foreground">{user.streak}</span>
+                    <span className="text-sm font-bold text-foreground">
+                      {user.streak}
+                    </span>
                   </div>
                   <p className="text-[10px] text-muted-foreground">Streak</p>
                 </div>
                 <div className="bg-accent/60 rounded-xl p-2.5 text-center">
                   <div className="flex items-center justify-center gap-1 mb-0.5">
                     <Star className="w-3.5 h-3.5 text-yellow-500" />
-                    <span className="text-sm font-bold text-foreground">{user.totalCardsLearned}</span>
+                    <span className="text-sm font-bold text-foreground">
+                      {user.totalCardsLearned}
+                    </span>
                   </div>
                   <p className="text-[10px] text-muted-foreground">Đã học</p>
                 </div>
@@ -88,13 +98,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                     "flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group",
                     location.pathname === href
                       ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent",
                   )}
                 >
                   <Icon
                     className={cn(
                       "w-4.5 h-4.5 transition-colors duration-200",
-                      location.pathname === href ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+                      location.pathname === href
+                        ? "text-primary"
+                        : "text-muted-foreground group-hover:text-foreground",
                     )}
                   />
                   {label}
@@ -114,7 +126,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 "flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
                 location.pathname === "/settings"
                   ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent",
               )}
             >
               <Settings className="w-4.5 h-4.5" />

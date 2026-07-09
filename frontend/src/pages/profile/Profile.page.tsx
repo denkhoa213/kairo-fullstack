@@ -9,10 +9,12 @@ import {
 } from "lucide-react";
 import DashboardLayout from "../../components/layout/DashboardLayout";
 import DeckCard from "../../components/ui/DeckCard";
-import useAuthStore from "../../stores/authStore";
+
 import { fetchDashboardStats, fetchUserProfile } from "../../lib/flashcards";
 import { useEffect, useState } from "react";
 import { formatNumber, formatDuration } from "../../lib/utils";
+import { useAuthStore } from "@/stores/authStore";
+import { getUserDisplayName } from "@/types/user.type";
 
 export default function ProfilePage() {
   const { user: authUser } = useAuthStore();
@@ -71,13 +73,13 @@ export default function ProfilePage() {
             {isLoading ? (
               <div className="w-12 h-12 bg-muted-foreground rounded-full" />
             ) : (
-              user?.name?.charAt(0).toUpperCase() || "U"
+              getUserDisplayName(user).charAt(0).toUpperCase() || "U"
             )}
           </div>
 
           <div className="flex-1 text-center md:text-left">
             <h1 className="text-2xl font-bold text-foreground mb-1">
-              {isLoading ? "..." : user?.name}
+              {isLoading ? "..." : getUserDisplayName(user)}
             </h1>
             <p className="text-muted-foreground text-sm mb-4">
               {isLoading ? "..." : user?.email}

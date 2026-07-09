@@ -1,26 +1,21 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { Eye, EyeOff, Layers, Loader2, ArrowRight, Code, Mail, CheckCircle } from "lucide-react";
-import { toast } from "sonner";
-import useAuthStore from "../../../stores/authStore";
+import { Link } from "react-router";
+import {
+  Eye,
+  EyeOff,
+  Layers,
+  ArrowRight,
+  Loader2,
+  Code,
+  Mail,
+  CheckCircle,
+} from "lucide-react";
 import { cn } from "../../../lib/utils";
-
-const registerSchema = z
-  .object({
-    name: z.string().min(2, "Tên ít nhất 2 ký tự").max(50, "Tên tối đa 50 ký tự"),
-    email: z.string().email("Email không hợp lệ"),
-    password: z.string().min(6, "Mật khẩu ít nhất 6 ký tự"),
-    confirmPassword: z.string(),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Mật khẩu xác nhận không khớp",
-    path: ["confirmPassword"],
-  });
-
-type RegisterFormData = z.infer<typeof registerSchema>;
+import type { RegisterFormData } from "./schema/auth.schema";
+import type {
+  UseFormRegister,
+  FieldErrors,
+  UseFormHandleSubmit,
+} from "react-hook-form";
 
 const BENEFITS = [
   "Học với 6 chế độ đa dạng",
@@ -30,46 +25,45 @@ const BENEFITS = [
   "Gamification & Leaderboard",
 ];
 
-export default function RegisterPage() {
-  const { register: registerUser, isLoading } = useAuthStore();
-  const navigate = useNavigate();
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
+interface RegisterPageProps {
+  // Form methods từ react-hook-form
+  register: UseFormRegister<RegisterFormData>;
+  handleSubmit: UseFormHandleSubmit<RegisterFormData>;
+  errors: FieldErrors<RegisterFormData>;
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    watch,
-  } = useForm<RegisterFormData>({
-    resolver: zodResolver(registerSchema),
-  });
+  // Password visibility
+  showPassword: boolean;
+  setShowPassword: (value: boolean) => void;
+  showConfirm: boolean;
+  setShowConfirm: (value: boolean) => void;
 
-  const passwordValue = watch("password", "");
-  const getPasswordStrength = (pwd: string) => {
-    if (!pwd) return 0;
-    let strength = 0;
-    if (pwd.length >= 6) strength++;
-    if (pwd.length >= 10) strength++;
-    if (/[A-Z]/.test(pwd)) strength++;
-    if (/[0-9]/.test(pwd)) strength++;
-    if (/[^A-Za-z0-9]/.test(pwd)) strength++;
-    return strength;
-  };
+  // Password strength
+  passwordValue: string;
+  strength: number;
+  strengthColors: string[];
+  strengthLabels: string[];
 
-  const strength = getPasswordStrength(passwordValue);
-  const strengthColors = ["bg-muted", "bg-destructive", "bg-warning", "bg-yellow-400", "bg-success", "bg-success"];
-  const strengthLabels = ["", "Yếu", "Trung bình", "Khá", "Mạnh", "Rất mạnh"];
+  // Submit
+  onSubmit: (data: RegisterFormData) => void;
+  isLoading: boolean;
+}
 
-  const onSubmit = async (data: RegisterFormData) => {
-    try {
-      await registerUser(data.name, data.email, data.password);
-      toast.success("Đăng ký thành công! Chào mừng đến Kairo 🎉");
-      navigate("/dashboard");
-    } catch {
-      toast.error("Đăng ký thất bại. Email có thể đã được sử dụng.");
-    }
-  };
+export default function RegisterPage({
+  register,
+  handleSubmit,
+  errors,
+  showPassword,
+  setShowPassword,
+  showConfirm,
+  setShowConfirm,
+  passwordValue,
+  strength,
+  strengthColors,
+  strengthLabels,
+  onSubmit,
+  isLoading,
+}: RegisterPageProps) {
+  const handleFormSubmit = handleSubmit(onSubmit);
 
   return (
     <div className="min-h-screen flex">
@@ -90,7 +84,8 @@ export default function RegisterPage() {
             Bắt đầu hành trình học tập của bạn
           </h2>
           <p className="text-white/70 text-base mb-8 leading-relaxed">
-            Tham gia cùng 250.000+ học viên đang học hiệu quả mỗi ngày với Kairo.
+            Tham gia cùng 250.000+ học viên đang học hiệu quả mỗi ngày với
+            Kairo.
           </p>
           <div className="flex flex-col gap-3">
             {BENEFITS.map((benefit, i) => (
@@ -107,7 +102,10 @@ export default function RegisterPage() {
         <div className="relative">
           <div className="flex items-center gap-3 mb-4">
             {["🧑‍🎓", "👩‍💻", "🧑‍🏫", "👨‍🎓", "👩‍🔬"].map((emoji, i) => (
-              <div key={i} className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-lg">
+              <div
+                key={i}
+                className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-lg"
+              >
                 {emoji}
               </div>
             ))}
@@ -129,10 +127,15 @@ export default function RegisterPage() {
 
         <div className="w-full max-w-md">
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-foreground mb-2">Tạo tài khoản miễn phí ✨</h1>
+            <h1 className="text-3xl font-bold text-foreground mb-2">
+              Tạo tài khoản miễn phí ✨
+            </h1>
             <p className="text-muted-foreground">
               Đã có tài khoản?{" "}
-              <Link to="/login" className="text-primary font-medium hover:underline">
+              <Link
+                to="/login"
+                className="text-primary font-medium hover:underline"
+              >
                 Đăng nhập
               </Link>
             </p>
@@ -158,35 +161,69 @@ export default function RegisterPage() {
 
           <div className="flex items-center gap-4 mb-6">
             <div className="flex-1 h-px bg-border" />
-            <span className="text-xs text-muted-foreground px-2">hoặc đăng ký bằng email</span>
+            <span className="text-xs text-muted-foreground px-2">
+              hoặc đăng ký bằng email
+            </span>
             <div className="flex-1 h-px bg-border" />
           </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
-            {/* Name */}
+          <form onSubmit={handleFormSubmit} className="flex flex-col gap-4">
+            {/* Họ và tên: 2 ô trên 1 hàng */}
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="name" className="text-sm font-medium text-foreground">
+              <label className="text-sm font-medium text-foreground">
                 Họ và tên
               </label>
-              <input
-                id="name"
-                type="text"
-                placeholder="Nguyễn Văn A"
-                autoComplete="name"
-                {...register("name")}
-                className={cn(
-                  "w-full px-4 py-3 rounded-2xl border bg-card focus:bg-background outline-none transition-all duration-200 text-sm",
-                  errors.name
-                    ? "border-destructive focus:ring-2 focus:ring-destructive/20"
-                    : "border-border focus:border-primary focus:ring-2 focus:ring-primary/20"
-                )}
-              />
-              {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <input
+                    id="lastName"
+                    type="text"
+                    placeholder="Nguyễn"
+                    autoComplete="family-name"
+                    {...register("lastName")}
+                    className={cn(
+                      "w-full px-4 py-3 rounded-2xl border bg-card focus:bg-background outline-none transition-all duration-200 text-sm",
+                      errors.lastName
+                        ? "border-destructive focus:ring-2 focus:ring-destructive/20"
+                        : "border-border focus:border-primary focus:ring-2 focus:ring-primary/20",
+                    )}
+                  />
+                  {errors.lastName && (
+                    <p className="text-xs text-destructive mt-1">
+                      {errors.lastName.message}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex-1">
+                  <input
+                    id="firstName"
+                    type="text"
+                    placeholder="Văn A"
+                    autoComplete="given-name"
+                    {...register("firstName")}
+                    className={cn(
+                      "w-full px-4 py-3 rounded-2xl border bg-card focus:bg-background outline-none transition-all duration-200 text-sm",
+                      errors.firstName
+                        ? "border-destructive focus:ring-2 focus:ring-destructive/20"
+                        : "border-border focus:border-primary focus:ring-2 focus:ring-primary/20",
+                    )}
+                  />
+                  {errors.firstName && (
+                    <p className="text-xs text-destructive mt-1">
+                      {errors.firstName.message}
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Email */}
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="reg-email" className="text-sm font-medium text-foreground">
+              <label
+                htmlFor="reg-email"
+                className="text-sm font-medium text-foreground"
+              >
                 Email
               </label>
               <input
@@ -199,15 +236,22 @@ export default function RegisterPage() {
                   "w-full px-4 py-3 rounded-2xl border bg-card focus:bg-background outline-none transition-all duration-200 text-sm",
                   errors.email
                     ? "border-destructive focus:ring-2 focus:ring-destructive/20"
-                    : "border-border focus:border-primary focus:ring-2 focus:ring-primary/20"
+                    : "border-border focus:border-primary focus:ring-2 focus:ring-primary/20",
                 )}
               />
-              {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+              {errors.email && (
+                <p className="text-xs text-destructive">
+                  {errors.email.message}
+                </p>
+              )}
             </div>
 
             {/* Password */}
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="reg-password" className="text-sm font-medium text-foreground">
+              <label
+                htmlFor="reg-password"
+                className="text-sm font-medium text-foreground"
+              >
                 Mật khẩu
               </label>
               <div className="relative">
@@ -221,7 +265,7 @@ export default function RegisterPage() {
                     "w-full px-4 py-3 pr-12 rounded-2xl border bg-card focus:bg-background outline-none transition-all duration-200 text-sm",
                     errors.password
                       ? "border-destructive focus:ring-2 focus:ring-destructive/20"
-                      : "border-border focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      : "border-border focus:border-primary focus:ring-2 focus:ring-primary/20",
                   )}
                 />
                 <button
@@ -229,29 +273,45 @@ export default function RegisterPage() {
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
-                  {showPassword ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
+                  {showPassword ? (
+                    <EyeOff className="w-4.5 h-4.5" />
+                  ) : (
+                    <Eye className="w-4.5 h-4.5" />
+                  )}
                 </button>
               </div>
               {/* Password strength */}
               {passwordValue && (
                 <div className="flex gap-1 mt-1">
-                  {Array(5).fill(0).map((_, i) => (
-                    <div
-                      key={i}
-                      className={cn("flex-1 h-1 rounded-full transition-colors duration-300",
-                        i < strength ? strengthColors[strength] : "bg-muted"
-                      )}
-                    />
-                  ))}
-                  <span className="text-xs text-muted-foreground ml-1">{strengthLabels[strength]}</span>
+                  {Array(5)
+                    .fill(0)
+                    .map((_, i) => (
+                      <div
+                        key={i}
+                        className={cn(
+                          "flex-1 h-1 rounded-full transition-colors duration-300",
+                          i < strength ? strengthColors[strength] : "bg-muted",
+                        )}
+                      />
+                    ))}
+                  <span className="text-xs text-muted-foreground ml-1">
+                    {strengthLabels[strength]}
+                  </span>
                 </div>
               )}
-              {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
+              {errors.password && (
+                <p className="text-xs text-destructive">
+                  {errors.password.message}
+                </p>
+              )}
             </div>
 
             {/* Confirm password */}
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="confirmPassword" className="text-sm font-medium text-foreground">
+              <label
+                htmlFor="confirmPassword"
+                className="text-sm font-medium text-foreground"
+              >
                 Xác nhận mật khẩu
               </label>
               <div className="relative">
@@ -265,7 +325,7 @@ export default function RegisterPage() {
                     "w-full px-4 py-3 pr-12 rounded-2xl border bg-card focus:bg-background outline-none transition-all duration-200 text-sm",
                     errors.confirmPassword
                       ? "border-destructive focus:ring-2 focus:ring-destructive/20"
-                      : "border-border focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      : "border-border focus:border-primary focus:ring-2 focus:ring-primary/20",
                   )}
                 />
                 <button
@@ -273,11 +333,17 @@ export default function RegisterPage() {
                   onClick={() => setShowConfirm(!showConfirm)}
                   className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
-                  {showConfirm ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
+                  {showConfirm ? (
+                    <EyeOff className="w-4.5 h-4.5" />
+                  ) : (
+                    <Eye className="w-4.5 h-4.5" />
+                  )}
                 </button>
               </div>
               {errors.confirmPassword && (
-                <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>
+                <p className="text-xs text-destructive">
+                  {errors.confirmPassword.message}
+                </p>
               )}
             </div>
 
@@ -299,9 +365,14 @@ export default function RegisterPage() {
 
           <p className="text-xs text-muted-foreground text-center mt-6">
             Bằng cách đăng ký, bạn đồng ý với{" "}
-            <a href="#" className="text-primary hover:underline">Điều khoản</a>
-            {" "}và{" "}
-            <a href="#" className="text-primary hover:underline">Chính sách bảo mật</a>.
+            <a href="#" className="text-primary hover:underline">
+              Điều khoản
+            </a>{" "}
+            và{" "}
+            <a href="#" className="text-primary hover:underline">
+              Chính sách bảo mật
+            </a>
+            .
           </p>
         </div>
       </div>
