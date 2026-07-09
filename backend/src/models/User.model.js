@@ -42,7 +42,7 @@ const UserSchema = new mongoose.Schema(
     },
     isActive: {
       type: Boolean,
-      default: true,
+      default: false,
     },
     premiumExpiry: {
       type: Date,
@@ -98,33 +98,10 @@ const UserSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true },
   },
 );
 
-// Virtuals
-UserSchema.virtual("isPremium").get(function () {
-  if (!this.premiumExpiry) return false;
-  return this.premiumExpiry > new Date();
-});
-
-UserSchema.virtual("isLocked").get(function () {
-  if (!this.lockUntil) return false;
-  return this.lockUntil > new Date();
-});
-
 UserSchema.index({ role: 1 });
-UserSchema.index({ isActive: 1 });
-
-// Methods
-UserSchema.methods.toJSON = function () {
-  const user = this.toObject();
-  delete user.password;
-  delete user.refreshToken;
-  delete user.__v;
-  return user;
-};
 
 const User = mongoose.model("User", UserSchema);
 

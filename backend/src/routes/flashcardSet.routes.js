@@ -1,19 +1,26 @@
-// import express from "express";
-// import { protectedRoute } from "../middlewares/auth.middleware.js";
-// import {
-//   listFlashcardSets,
-//   getFlashcardSet,
-//   createFlashcardSet,
-//   updateFlashcardSet,
-//   deleteFlashcardSet,
-// } from "../controllers/flashcardSet.controller.js";
+import express from "express";
+import { optionalAuth, protectedRoute } from "../middlewares/auth.middleware.js";
+import {
+  listFlashcardSets,
+  getFlashcardSet,
+  createFlashcardSet,
+  updateFlashcardSet,
+  deleteFlashcardSet,
+  toggleLikeSet,
+  getMySets,
+} from "../controllers/flashcardSet.controller.js";
 
-// const router = express.Router();
+const router = express.Router();
 
-// router.get("/", listFlashcardSets);
-// router.get("/:id", getFlashcardSet);
-// router.post("/", protectedRoute, createFlashcardSet);
-// router.put("/:id", protectedRoute, updateFlashcardSet);
-// router.delete("/:id", protectedRoute, deleteFlashcardSet);
+// Public
+router.get("/", listFlashcardSets);
+router.get("/my", protectedRoute, getMySets);
+router.get("/:id", optionalAuth, getFlashcardSet);
 
-// export default router;
+// Private
+router.post("/", protectedRoute, createFlashcardSet);
+router.put("/:id", protectedRoute, updateFlashcardSet);
+router.delete("/:id", protectedRoute, deleteFlashcardSet);
+router.post("/:id/like", protectedRoute, toggleLikeSet);
+
+export default router;
